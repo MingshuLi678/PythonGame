@@ -424,19 +424,49 @@ class Game:
         self.screen.fill((200, 200, 200))
         # if in menu state, draw start screen
         if self.state == 'menu':
-            title = self.big_font.render("Match-3 Game", True, (10, 10, 10))
+            # comic-style black-and-white background with halftone dots
+            self.screen.fill((245, 245, 245))
+            # draw halftone-like dots pattern (sparse) for comic texture
+            dot_color = (200, 200, 200)
+            step = 10
+            for y in range(0, WINDOW_HEIGHT, step):
+                for x in range((y // step) % 2 * (step // 2), WINDOW_WIDTH, step):
+                    if (x + y) % (step * 2) == 0:
+                        pygame.draw.circle(self.screen, dot_color, (x + 3, y + 3), 2)
+
+            # bold frame
+            pygame.draw.rect(self.screen, (0, 0, 0), (20, 20, WINDOW_WIDTH - 40, WINDOW_HEIGHT - 40), 6)
+
+            # speech-bubble title
+            title_text = "MATCH-3"
+            title = self.big_font.render(title_text, True, (0, 0, 0))
+            bub_w = title.get_width() + 80
+            bub_h = title.get_height() + 40
+            bub_x = (WINDOW_WIDTH - bub_w) // 2
+            bub_y = 60
+            pygame.draw.ellipse(self.screen, (255, 255, 255), (bub_x, bub_y, bub_w, bub_h))
+            pygame.draw.ellipse(self.screen, (0, 0, 0), (bub_x, bub_y, bub_w, bub_h), 4)
+            # little tail
+            tail = [(bub_x + bub_w - 40, bub_y + bub_h), (bub_x + bub_w - 10, bub_y + bub_h + 30), (bub_x + bub_w - 80, bub_y + bub_h)]
+            pygame.draw.polygon(self.screen, (255, 255, 255), tail)
+            pygame.draw.polygon(self.screen, (0, 0, 0), tail, 3)
+            self.screen.blit(title, (bub_x + 40, bub_y + 18))
+
+            # draw start button (centered)
             start_txt = self.big_font.render("Start", True, (255, 255, 255))
             best_txt = self.big_font.render("Best", True, (255, 255, 255))
-            self.screen.blit(title, ((WINDOW_WIDTH - title.get_width()) // 2, 120))
-            # draw start button
             btn_rect = pygame.Rect((WINDOW_WIDTH - 200) // 2, 220, 200, 60)
-            pygame.draw.rect(self.screen, (30, 144, 255), btn_rect)
+            pygame.draw.rect(self.screen, (0, 0, 0), btn_rect, 4)  # black border
+            pygame.draw.rect(self.screen, (30, 30, 30), btn_rect.inflate(-6, -6))
             self.screen.blit(start_txt, (btn_rect.left + (btn_rect.width - start_txt.get_width()) // 2, btn_rect.top + 12))
-            # draw best button below the start button (same size) and green
+
+            # Best button below start (green fill with black border)
             best_btn = pygame.Rect(btn_rect.left, btn_rect.bottom + 12, btn_rect.width, btn_rect.height)
-            pygame.draw.rect(self.screen, (80, 160, 80), best_btn)
+            pygame.draw.rect(self.screen, (0, 0, 0), best_btn, 4)
+            pygame.draw.rect(self.screen, (60, 140, 60), best_btn.inflate(-6, -6))
             self.screen.blit(best_txt, (best_btn.left + (best_btn.width - best_txt.get_width()) // 2, best_btn.top + (best_btn.height - best_txt.get_height()) // 2))
-            # rules preview (short intro)
+
+            # rules preview (below best button)
             rules_preview = [
                 "Click three identical shapes to remove them (match-3).",
                 "Clear all shapes to win the level.",
@@ -445,14 +475,14 @@ class Game:
                 "Try to clear all blocks within the time limit! (*^▽^*)",
             ]
             for i, line in enumerate(rules_preview):
-                txt = self.font.render(line, True, (0, 0, 0))
-                # place rules below the best button
+                txt = self.font.render(line, True, (10, 10, 10))
                 self.screen.blit(txt, ((WINDOW_WIDTH - txt.get_width()) // 2, best_btn.bottom + 12 + i * 20))
+
             # draw best-level popup if requested
             if getattr(self, 'showing_best_until', None) and time.time() < self.showing_best_until:
                 popup = pygame.Rect((WINDOW_WIDTH - 320) // 2, best_btn.bottom + 12 + len(rules_preview) * 20 + 12, 320, 48)
                 pygame.draw.rect(self.screen, (255, 255, 220), popup)
-                pygame.draw.rect(self.screen, (120, 120, 120), popup, 2)
+                pygame.draw.rect(self.screen, (0, 0, 0), popup, 3)
                 best_msg = f"Highest level reached: {self.best_level}"
                 bt = self.font.render(best_msg, True, (0, 0, 0))
                 self.screen.blit(bt, (popup.left + (popup.width - bt.get_width()) // 2, popup.top + (popup.height - bt.get_height()) // 2))
