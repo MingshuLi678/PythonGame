@@ -123,6 +123,18 @@ class Game:
             self.snd_elim = None
             self.snd_victory = None
 
+        # load persistent best-level (history)
+        self.history_file = "game_history.json"
+        self.best_level = 0
+        try:
+            import json, os
+            if os.path.exists(self.history_file):
+                with open(self.history_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    self.best_level = int(data.get('best_level', 0))
+        except Exception:
+            self.best_level = 0
+
     def start_level(self, level):
         # compute dimensions based on level with max depth 3
         # progression: start w=3,h=3,d=1; increase d up to 3, then alternate increasing h and w
@@ -236,6 +248,16 @@ class Game:
             self.hint_shown = False
             self.hint_start = None
             self.hint_msg = ""
+
+        # update best-level if higher
+        try:
+            if level > self.best_level:
+                self.best_level = level
+                import json
+                with open(self.history_file, 'w', encoding='utf-8') as f:
+                    json.dump({'best_level': self.best_level}, f)
+        except Exception:
+            pass
 
     def get_top(self, x, y):
         stack = self.board.get((x, y), [])
@@ -404,11 +426,16 @@ class Game:
         if self.state == 'menu':
             title = self.big_font.render("Match-3 Game", True, (10, 10, 10))
             start_txt = self.big_font.render("Start", True, (255, 255, 255))
+            best_txt = self.font.render("Best", True, (255, 255, 255))
             self.screen.blit(title, ((WINDOW_WIDTH - title.get_width()) // 2, 120))
             # draw start button
-            btn_rect = pygame.Rect((WINDOW_WIDTH - 200) // 2, 220, 200, 60)
+            btn_rect = pygame.Rect((WINDOW_WIDTH - 460) // 2, 220, 200, 60)
             pygame.draw.rect(self.screen, (30, 144, 255), btn_rect)
             self.screen.blit(start_txt, (btn_rect.left + (btn_rect.width - start_txt.get_width()) // 2, btn_rect.top + 12))
+            # draw best button next to it
+            best_btn = pygame.Rect(btn_rect.right + 20, btn_rect.top, 100, btn_rect.height)
+            pygame.draw.rect(self.screen, (120, 120, 120), best_btn)
+            self.screen.blit(best_txt, (best_btn.left + (best_btn.width - best_txt.get_width()) // 2, best_btn.top + 20))
             # rules preview (short intro)
             rules_preview = [
                 "Click three identical shapes to remove them (match-3).",
@@ -420,6 +447,14 @@ class Game:
             for i, line in enumerate(rules_preview):
                 txt = self.font.render(line, True, (0, 0, 0))
                 self.screen.blit(txt, ((WINDOW_WIDTH - txt.get_width()) // 2, btn_rect.bottom + 12 + i * 20))
+            # draw best-level popup if requested
+            if getattr(self, 'showing_best_until', None) and time.time() < self.showing_best_until:
+                popup = pygame.Rect((WINDOW_WIDTH - 320) // 2, btn_rect.bottom + 12 + len(rules_preview) * 20 + 12, 320, 48)
+                pygame.draw.rect(self.screen, (255, 255, 220), popup)
+                pygame.draw.rect(self.screen, (120, 120, 120), popup, 2)
+                best_msg = f"Highest level reached: {self.best_level}"
+                bt = self.font.render(best_msg, True, (0, 0, 0))
+                self.screen.blit(bt, (popup.left + (popup.width - bt.get_width()) // 2, popup.top + (popup.height - bt.get_height()) // 2))
             pygame.display.flip()
             return
 
@@ -656,10 +691,15 @@ class Game:
                     mx, my = event.pos
                     # handle start/menu/gameover buttons
                     if self.state == 'menu':
-                        btn_rect = pygame.Rect((WINDOW_WIDTH - 200) // 2, 220, 200, 60)
+                        btn_rect = pygame.Rect((WINDOW_WIDTH - 460) // 2, 220, 200, 60)
+                        best_btn = pygame.Rect(btn_rect.right + 20, btn_rect.top, 100, btn_rect.height)
                         if btn_rect.collidepoint(mx, my):
                             self.state = 'playing'
                             self.start_level(self.level)
+                        elif best_btn.collidepoint(mx, my):
+                            # show best-level popup for 2.5 seconds
+                            self.showing_best_until = time.time() + 2.5
+                        
                         continue
                     if self.state == 'gameover':
                         btn_rect = pygame.Rect((WINDOW_WIDTH - 300) // 2, 220, 300, 60)
@@ -707,4 +747,3 @@ def main():
 if __name__ == '__main__':
     main()
 
-print("p --- IGNORE ---")
