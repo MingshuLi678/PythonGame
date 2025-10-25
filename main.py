@@ -747,7 +747,9 @@ class Game:
         # draw UI: timer, level, score, rules
         ui_x = preview_rect.left + 10
         ui_y = py + ph + 12
-        timer_txt = self.big_font.render(f"Time: {self.remaining}s", True, (10, 10, 10))
+        # make timer red when under 10 seconds to increase urgency
+        timer_color = (200, 20, 20) if getattr(self, 'remaining', 0) < 10 else (10, 10, 10)
+        timer_txt = self.big_font.render(f"Time: {self.remaining}s", True, timer_color)
         level_txt = self.big_font.render(f"Level: {self.level} ({self.w}x{self.h}x{self.d})", True, (10, 10, 10))
         score_txt = self.big_font.render(f"Score: {self.score}", True, (10, 10, 10))
         self.screen.blit(timer_txt, (ui_x, ui_y))
@@ -786,15 +788,40 @@ class Game:
             txt = self.font.render(line, True, (0, 0, 0))
             self.screen.blit(txt, (preview_rect.left + 10, ui_y + 50 + i * 22))
 
-        # draw hint popup if needed
+        # draw hint popup if needed (wrapped to avoid overflow)
         if getattr(self, 'hint_shown', False):
             if time.time() - self.hint_start < 4.0:
                 hint_rect = pygame.Rect((WINDOW_WIDTH - 560) // 2, 80, 560, 72)
                 pygame.draw.rect(self.screen, (255, 255, 200), hint_rect)
                 pygame.draw.rect(self.screen, (120, 120, 120), hint_rect, 2)
-                hint_txt = self.font.render(self.hint_msg, True, (0, 0, 0))
-                # center text vertically
-                self.screen.blit(hint_txt, (hint_rect.left + 12, hint_rect.top + (hint_rect.height - hint_txt.get_height()) // 2))
+
+                # render wrapped text to fit inside hint_rect with padding
+                def render_wrapped(surface, text, font, color, rect, padding=12, line_spacing=2):
+                    words = text.split()
+                    lines = []
+                    cur = ""
+                    max_width = rect.width - padding * 2
+                    for w in words:
+                        test = cur + (" " if cur else "") + w
+                        if font.size(test)[0] <= max_width:
+                            cur = test
+                        else:
+                            if cur:
+                                lines.append(cur)
+                            cur = w
+                    if cur:
+                        lines.append(cur)
+
+                    line_h = font.get_height()
+                    total_h = len(lines) * line_h + max(0, len(lines) - 1) * line_spacing
+                    y = rect.top + (rect.height - total_h) // 2
+                    for line in lines:
+                        txt_s = font.render(line, True, color)
+                        x = rect.left + (rect.width - txt_s.get_width()) // 2
+                        surface.blit(txt_s, (x, y))
+                        y += line_h + line_spacing
+
+                render_wrapped(self.screen, self.hint_msg, self.font, (0, 0, 0), hint_rect)
             else:
                 self.hint_shown = False
 
