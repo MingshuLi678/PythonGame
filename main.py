@@ -441,9 +441,19 @@ class Game:
         # check timer
         elapsed = time.time() - self.level_start_ts
         self.remaining = max(0, self.level_time - int(elapsed))
+        if getattr(self, 'timesup_until', None):
+            # if times-up overlay active, wait for it to expire and then restart level
+            if time.time() >= self.timesup_until:
+                self.timesup_until = None
+                # restart same level
+                self.start_level(self.level)
+            return
+
         if self.remaining <= 0:
-            # level failed, restart same level
-            self.start_level(self.level)
+            # level failed: show a "Time's up!" overlay for a short moment then restart
+            if not getattr(self, 'timesup_until', None):
+                self.timesup_until = time.time() + 3.0
+            return
         # if in victory overlay, wait until it's done
         if getattr(self, 'victory_until', None):
             if time.time() >= self.victory_until:
@@ -834,6 +844,16 @@ class Game:
             sub = self.font.render("Advancing to next level...", True, (255, 255, 255))
             self.screen.blit(msg, ((WINDOW_WIDTH - msg.get_width()) // 2, (WINDOW_HEIGHT - msg.get_height()) // 2 - 10))
             self.screen.blit(sub, ((WINDOW_WIDTH - sub.get_width()) // 2, (WINDOW_HEIGHT - sub.get_height()) // 2 + 26))
+        # draw times-up overlay if active (similar style to victory)
+        if getattr(self, 'timesup_until', None):
+            overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT), pygame.SRCALPHA)
+            overlay.fill((0, 0, 0, 200))
+            self.screen.blit(overlay, (0, 0))
+            msg = self.big_font.render("Time's up!", True, (255, 200, 200))
+            sub = self.font.render("Restarting level...", True, (255, 255, 255))
+            self.screen.blit(msg, ((WINDOW_WIDTH - msg.get_width()) // 2, (WINDOW_HEIGHT - msg.get_height()) // 2 - 10))
+            self.screen.blit(sub, ((WINDOW_WIDTH - sub.get_width()) // 2, (WINDOW_HEIGHT - sub.get_height()) // 2 + 26))
+
         pygame.display.flip()
 
     def run(self):
@@ -842,8 +862,8 @@ class Game:
                 if event.type == pygame.QUIT:
                     self.running = False
                 elif event.type == pygame.KEYDOWN:
-                    # block input during victory overlay
-                    if getattr(self, 'victory_until', None):
+                    # block input during victory or times-up overlay
+                    if getattr(self, 'victory_until', None) or getattr(self, 'timesup_until', None):
                         continue
                     if event.key == pygame.K_ESCAPE:
                         self.running = False
@@ -864,6 +884,9 @@ class Game:
                             self.undo_stack.append(snap)
                             self.shuffle_remaining()
                 elif event.type == pygame.MOUSEBUTTONDOWN:
+                    # ignore mouse input during overlays
+                    if getattr(self, 'victory_until', None) or getattr(self, 'timesup_until', None):
+                        continue
                     mx, my = event.pos
                     # handle start/menu/gameover buttons
                     if self.state == 'menu':
