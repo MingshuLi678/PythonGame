@@ -22,13 +22,21 @@ def generate_colors(n):
 
 
 SHAPES = ['circle', 'triangle', 'square', 'diamond', 'pentagon', 'hexagon', 'cross', 'plus', 'oval', 'trapezoid']
+# extra shapes that will be introduced at higher levels
+EXTRA_SHAPES = ['four_star', 'five_star', 'hollow_circle']
 
 
-def generate_shapes(n):
+def generate_shapes(n, pool=None):
+    """Generate a list of n shape names cycling through `pool` (defaults to SHAPES + EXTRA_SHAPES).
+
+    `pool` can be a subset to control which shapes are available at a given level.
+    """
+    if pool is None:
+        pool = SHAPES + EXTRA_SHAPES
     syms = []
     i = 0
     while len(syms) < n:
-        syms.append(SHAPES[i % len(SHAPES)])
+        syms.append(pool[i % len(pool)])
         i += 1
     return syms
 
@@ -167,25 +175,58 @@ class Game:
         triplet_count = self.total_blocks // 3
         remainder = self.total_blocks % 3
 
-        # No wildcard mechanic anymore. Build triplets and if there is a remainder,
-        # append extra symbols (duplicating some) so the flat list length matches total_blocks.
+        # control which shapes are available depending on level so we can introduce
+        # new shapes gradually (avoid making the game too hard immediately).
+        # Base pool is SHAPES; extras are added at specific levels.
+        pool = list(SHAPES)  # copy
+        if level >= 5:
+            pool.append('four_star')
+        if level >= 6:
+            pool.append('five_star')
+        if level >= 7:
+            pool.append('hollow_circle')
+
         top_slots = w * h
         distinct_symbols = max(1, min(triplet_count, top_slots))
-        symbols = generate_shapes(distinct_symbols)
+        symbols = generate_shapes(distinct_symbols, pool=pool)
 
-        # build flat list of symbols (triplets)
+        # build flat list of symbols (triplets).
+        # To keep playability when introducing new shapes, make newly-introduced
+        # shapes rare initially: give each new shape a single triplet, then
+        # distribute remaining triplets among the older/base symbols.
         flat = []
-        for i in range(triplet_count):
-            sym = symbols[i % distinct_symbols]
+        extra_set = set(EXTRA_SHAPES)
+        # identify which of the chosen symbols are extras (newly introduced)
+        new_symbols = [s for s in symbols if s in extra_set]
+        base_symbols = [s for s in symbols if s not in extra_set]
+
+        remaining_triplets = triplet_count
+        # assign one triplet for each new symbol (so they appear but are rare)
+        for sym in new_symbols:
             flat.extend([sym, sym, sym])
+            remaining_triplets -= 1
+
+        # distribute remaining triplets among base symbols if available, else among new symbols
+        if base_symbols and remaining_triplets > 0:
+            for i in range(remaining_triplets):
+                sym = base_symbols[i % len(base_symbols)]
+                flat.extend([sym, sym, sym])
+        elif remaining_triplets > 0 and new_symbols:
+            for i in range(remaining_triplets):
+                sym = new_symbols[i % len(new_symbols)]
+                flat.extend([sym, sym, sym])
 
         # append extra symbols for remainder (no wildcards)
         offset = triplet_count
         for j in range(remainder):
-            sym = symbols[(offset + j) % distinct_symbols]
-            flat.append(sym)
+            if flat:
+                # pick a symbol cyclically from the symbols list
+                sym = symbols[(offset + j) % len(symbols)]
+                flat.append(sym)
+            else:
+                flat.append(symbols[0])
 
-        # ensure total length equals total_blocks by adding more copies of the first symbol if needed
+        # ensure total length equals total_blocks by adding the first symbol if needed
         while len(flat) < self.total_blocks:
             flat.append(symbols[0])
         while len(flat) > self.total_blocks:
@@ -618,6 +659,36 @@ class Game:
             elif shape == 'trapezoid':
                 pts = [(cx - r, cy + r), (cx + r, cy + r), (cx + r * 0.6, cy - r), (cx - r * 0.6, cy - r)]
                 pygame.draw.polygon(surface, color, pts)
+            elif shape == 'four_star':
+                # draw a simple 4-point star (like a burst)
+                pts = [
+                    (cx, cy - r * 1.1),
+                    (cx + r * 0.25, cy - r * 0.25),
+                    (cx + r * 1.1, cy),
+                    (cx + r * 0.25, cy + r * 0.25),
+                    (cx, cy + r * 1.1),
+                    (cx - r * 0.25, cy + r * 0.25),
+                    (cx - r * 1.1, cy),
+                    (cx - r * 0.25, cy - r * 0.25),
+                ]
+                pygame.draw.polygon(surface, color, pts)
+            elif shape == 'five_star':
+                # 5-point star using a simple algorithm
+                import math
+                pts = []
+                outer = r * 1.05
+                inner = r * 0.45
+                for i in range(10):
+                    ang = math.pi / 2 + i * (2 * math.pi / 10)
+                    rad = outer if i % 2 == 0 else inner
+                    x = cx + rad * math.cos(ang)
+                    y = cy - rad * math.sin(ang)
+                    pts.append((x, y))
+                pygame.draw.polygon(surface, color, pts)
+            elif shape == 'hollow_circle':
+                # draw an outer circle then an inner hole to make it hollow
+                pygame.draw.circle(surface, color, (int(cx), int(cy)), int(r))
+                pygame.draw.circle(surface, (0, 0, 0), (int(cx), int(cy)), int(r * 0.55))
             else:
                 # fallback: circle
                 pygame.draw.circle(surface, color, (int(cx), int(cy)), int(r))
