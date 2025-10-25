@@ -437,20 +437,67 @@ class Game:
             # bold frame
             pygame.draw.rect(self.screen, (0, 0, 0), (20, 20, WINDOW_WIDTH - 40, WINDOW_HEIGHT - 40), 6)
 
-            # speech-bubble title
-            title_text = "MATCH-3"
-            title = self.big_font.render(title_text, True, (0, 0, 0))
-            bub_w = title.get_width() + 80
-            bub_h = title.get_height() + 40
-            bub_x = (WINDOW_WIDTH - bub_w) // 2
-            bub_y = 60
-            pygame.draw.ellipse(self.screen, (255, 255, 255), (bub_x, bub_y, bub_w, bub_h))
-            pygame.draw.ellipse(self.screen, (0, 0, 0), (bub_x, bub_y, bub_w, bub_h), 4)
-            # little tail
-            tail = [(bub_x + bub_w - 40, bub_y + bub_h), (bub_x + bub_w - 10, bub_y + bub_h + 30), (bub_x + bub_w - 80, bub_y + bub_h)]
-            pygame.draw.polygon(self.screen, (255, 255, 255), tail)
-            pygame.draw.polygon(self.screen, (0, 0, 0), tail, 3)
-            self.screen.blit(title, (bub_x + 40, bub_y + 18))
+            # comic burst title (black & white jagged burst + halftone + outlined text)
+            def draw_comic_burst(surface, text, top_y, w=720, h=180):
+                import math
+                surf = pygame.Surface((w, h), pygame.SRCALPHA)
+                cx = w // 2
+                cy = h // 2
+
+                # jagged burst polygon
+                pts = []
+                spikes = 16
+                for i in range(spikes * 2):
+                    angle = (i / (spikes * 2.0)) * 2 * math.pi
+                    r = (min(w, h) * 0.45) * (1.0 if i % 2 == 0 else 0.55)
+                    x = cx + int(r * math.cos(angle))
+                    y = cy + int(r * math.sin(angle))
+                    pts.append((x, y))
+
+                # white fill with thick black outline
+                pygame.draw.polygon(surf, (255, 255, 255), pts)
+                pygame.draw.polygon(surf, (0, 0, 0), pts, 6)
+
+                # halftone-style dots (light gray) inside the burst
+                dot_col = (200, 200, 200)
+                spacing = 12
+                maxr = min(w, h) * 0.45
+                for dx in range(0, w, spacing):
+                    for dy in range(0, h, spacing):
+                        px = dx + spacing // 2
+                        py = dy + spacing // 2
+                        dist = math.hypot(px - cx, py - cy)
+                        if dist < maxr:
+                            radius = int(max(0, (1.0 - dist / maxr) ) * 3)
+                            if radius > 0:
+                                pygame.draw.circle(surf, dot_col, (px, py), radius)
+
+                # render big outlined title
+                try:
+                    title_font = pygame.font.SysFont(None, 72)
+                except Exception:
+                    title_font = self.big_font
+                txt = title_font.render(text, True, (255, 255, 255))
+                # outline by rendering black copies around
+                outline_color = (0, 0, 0)
+                for ox in (-3, -2, -1, 0, 1, 2, 3):
+                    for oy in (-3, -2, -1, 0, 1, 2, 3):
+                        if abs(ox) + abs(oy) == 0:
+                            continue
+                        surf.blit(title_font.render(text, True, outline_color), (cx - txt.get_width() // 2 + ox, cy - txt.get_height() // 2 + oy - 6))
+                surf.blit(txt, (cx - txt.get_width() // 2, cy - txt.get_height() // 2 - 6))
+
+                # small subtitle 'GAME' below
+                try:
+                    sub_font = pygame.font.SysFont(None, 28)
+                except Exception:
+                    sub_font = self.font
+                sub_s = sub_font.render('GAME', True, (0, 0, 0))
+                surf.blit(sub_s, (cx - sub_s.get_width() // 2, cy + txt.get_height() // 2 - 0))
+
+                surface.blit(surf, ((WINDOW_WIDTH - w) // 2, top_y))
+
+            draw_comic_burst(self.screen, 'MATCH-3', 40, w=720, h=180)
 
             # draw start button (centered)
             start_txt = self.big_font.render("Start", True, (255, 255, 255))
